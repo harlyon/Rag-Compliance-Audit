@@ -1,0 +1,58 @@
+meta:
+  pack_id: employment_za
+  version: 0.1.0
+  jurisdiction: ZA
+
+rules:
+  - rule_id: EMP-CONTRACT-001
+    domain: employment
+    description: "Every employment contract must state working hours and remuneration"
+    jurisdiction: ZA
+    severity: high
+    evidence_required: true
+    retrieval_hints:
+      - "working hours ordinary hours of work"
+      - "remuneration salary wage compensation"
+    check_prompt: >
+      Determine whether the contract specifies the employee's working hours
+      AND remuneration. Quote the exact clause(s) for each. If either is
+      absent, mark non_compliant. If no relevant contract text was retrieved,
+      mark missing_evidence.
+
+  - rule_id: EMP-CONTRACT-002
+    domain: employment
+    description: "Probation period must be stated in writing with duration"
+    jurisdiction: ZA
+    severity: medium
+    evidence_required: true
+    retrieval_hints:
+      - "probation period duration"
+    check_prompt: >
+      Determine whether the contract states a probation period and its
+      duration in writing. Quote the clause. Absent or oral-only references
+      are non_compliant.
+
+  - rule_id: EMP-LEAVE-001
+    domain: employment
+    description: "Annual leave entitlement must be specified"
+    jurisdiction: ZA
+    severity: medium
+    evidence_required: true
+    retrieval_hints:
+      - "annual leave entitlement days"
+    check_prompt: >
+      Determine whether the document specifies the employee's annual leave
+      entitlement (days or formula). Quote the clause.
+
+  - rule_id: EMP-TERMINATION-001
+    domain: employment
+    description: "Notice period for termination must be defined"
+    jurisdiction: ZA
+    severity: high
+    evidence_required: true
+    retrieval_hints:
+      - "notice of termination notice period"
+    check_prompt: >
+      Determine whether the contract defines a notice period for termination
+      of employment. Quote the clause. If notice is mentioned but no duration
+      is given, mark non_compliant with severity high.

@@ -1,0 +1,11 @@
+litellm>=1.50
+qdrant-client>=1.12,<1.13  # must stay within one minor version of the server in docker-compose.yml
+psycopg[binary]>=3.2
+pdfplumber>=0.11
+python-docx>=1.1
+typer>=0.12
+rich>=13
+pyyaml>=6.0
+streamlit>=1.38
+pandas>=2.2
+pytest>=8.0

@@ -1,0 +1,139 @@
+meta:
+  pack_id: financial_report
+  name: Financial Report
+  version: 0.1.0
+  jurisdiction: any
+
+rules:
+  - rule_id: FIN-REVENUE-001
+    domain: financial
+    description: "Revenue figures disclosed"
+    severity: high
+    evidence_required: true
+    retrieval_hints:
+      - "total revenue turnover sales"
+      - "income statement revenue for the year"
+    check_prompt: >
+      Determine whether total revenue for the reporting period is disclosed
+      as a figure. Quote it. If revenue is discussed but no figure is given,
+      mark non_compliant.
+
+  - rule_id: FIN-NETINCOME-001
+    domain: financial
+    description: "Net income / profit reported"
+    severity: high
+    evidence_required: true
+    retrieval_hints:
+      - "net income net profit profit for the year"
+      - "loss attributable to shareholders"
+    check_prompt: >
+      Determine whether net income (or net profit/loss) for the period is
+      reported as a figure. Quote it. If absent, mark non_compliant.
+
+  - rule_id: FIN-EBITDA-001
+    domain: financial
+    description: "EBITDA or operating profit disclosed"
+    severity: low
+    evidence_required: true
+    retrieval_hints:
+      - "EBITDA operating profit"
+      - "earnings before interest tax depreciation amortisation"
+    check_prompt: >
+      Determine whether EBITDA or operating profit is disclosed as a figure.
+      Quote it. If neither is disclosed, mark non_compliant.
+
+  - rule_id: FIN-CASHFLOW-001
+    domain: financial
+    description: "Cash flow statement present"
+    severity: high
+    evidence_required: true
+    retrieval_hints:
+      - "statement of cash flows"
+      - "net cash from operating investing financing activities"
+    check_prompt: >
+      Determine whether the report contains a cash flow statement covering
+      operating, investing and financing activities. Quote the headline net
+      cash figures. If there is no cash flow statement, mark non_compliant.
+
+  - rule_id: FIN-DEBT-001
+    domain: financial
+    description: "Debt obligations disclosed"
+    severity: high
+    evidence_required: true
+    retrieval_hints:
+      - "borrowings loans debt obligations"
+      - "maturity repayment terms interest rate"
+    check_prompt: >
+      Determine whether total debt obligations and their repayment terms
+      (maturities or schedule) are disclosed. Quote them. If debt is
+      disclosed without repayment terms, mark non_compliant. If the report
+      states there is no debt, mark compliant and quote that statement.
+
+  - rule_id: FIN-RISK-001
+    domain: financial
+    description: "Risk factors disclosed"
+    severity: medium
+    evidence_required: true
+    retrieval_hints:
+      - "principal risks and uncertainties risk factors"
+      - "risk management"
+    check_prompt: >
+      Determine whether the report discloses the principal risk factors
+      facing the business. Quote representative examples. If none are
+      disclosed, mark non_compliant.
+
+  - rule_id: FIN-AUDITOR-001
+    domain: financial
+    description: "Auditor opinion present"
+    severity: high
+    evidence_required: true
+    retrieval_hints:
+      - "independent auditor's report opinion"
+      - "present fairly in all material respects qualified opinion"
+    check_prompt: >
+      Determine whether an independent auditor's opinion is included and
+      whether it is unqualified, qualified, adverse, or a disclaimer. Quote
+      the opinion paragraph. If the opinion is present and unqualified, mark
+      compliant. If it is qualified, adverse, or a disclaimer, mark
+      non_compliant and quote the basis. If there is no auditor's opinion,
+      mark missing_evidence.
+
+  - rule_id: FIN-GOINGCONCERN-001
+    domain: financial
+    description: "Going concern assessment"
+    severity: high
+    evidence_required: true
+    retrieval_hints:
+      - "going concern basis of preparation"
+      - "material uncertainty significant doubt ability to continue"
+    check_prompt: >
+      Determine whether the report includes a going concern assessment.
+      Quote it. If the assessment raises a material uncertainty or
+      significant doubt, mark non_compliant and quote the wording. If no
+      assessment is included, mark non_compliant.
+
+  - rule_id: FIN-RELATEDPARTY-001
+    domain: financial
+    description: "Related party transactions disclosed"
+    severity: medium
+    evidence_required: true
+    retrieval_hints:
+      - "related party transactions"
+      - "key management personnel directors balances"
+    check_prompt: >
+      Determine whether related party transactions are disclosed (or the
+      report states there were none). Quote the disclosure. If the topic is
+      not addressed, mark non_compliant.
+
+  - rule_id: FIN-GUIDANCE-001
+    domain: financial
+    description: "Forward guidance provided"
+    severity: low
+    evidence_required: true
+    retrieval_hints:
+      - "outlook guidance expects forecast"
+      - "next financial year prospects"
+    check_prompt: >
+      Determine whether the report gives forward-looking guidance or an
+      outlook for future periods. Quote it. If none is given, mark
+      non_compliant.

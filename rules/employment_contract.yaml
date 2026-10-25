@@ -1,0 +1,136 @@
+meta:
+  pack_id: employment_contract
+  name: Employment Contract
+  version: 0.1.0
+  jurisdiction: any
+
+rules:
+  - rule_id: EMPC-ROLE-001
+    domain: employment
+    description: "Role and responsibilities defined"
+    severity: medium
+    evidence_required: true
+    retrieval_hints:
+      - "position job title role"
+      - "duties and responsibilities report to"
+    check_prompt: >
+      Determine whether the contract states the employee's job title and
+      describes their responsibilities. Quote the clause. If only a title is
+      given with no responsibilities, mark non_compliant.
+
+  - rule_id: EMPC-COMP-001
+    domain: employment
+    description: "Compensation specified"
+    severity: high
+    evidence_required: true
+    retrieval_hints:
+      - "salary remuneration compensation per annum per month"
+      - "payable in arrears"
+    check_prompt: >
+      Determine whether the base salary or compensation is stated as an
+      amount and payment frequency. Quote the clause. If compensation is
+      mentioned without an amount, mark non_compliant.
+
+  - rule_id: EMPC-BENEFITS-001
+    domain: employment
+    description: "Benefits outlined"
+    severity: low
+    evidence_required: true
+    retrieval_hints:
+      - "benefits medical aid health insurance pension retirement"
+      - "share options equity bonus"
+    check_prompt: >
+      Determine whether the contract outlines employee benefits such as
+      health cover, pension or retirement fund, or equity. Quote the clause.
+      If the contract states no benefits are provided, mark compliant and
+      quote that statement. If benefits are not addressed, mark
+      non_compliant.
+
+  - rule_id: EMPC-START-001
+    domain: employment
+    description: "Start date specified"
+    severity: medium
+    evidence_required: true
+    retrieval_hints:
+      - "commencement date start date employment shall commence"
+    check_prompt: >
+      Determine whether the employment start or commencement date is stated.
+      Quote the clause. If absent, mark non_compliant.
+
+  - rule_id: EMPC-PROBATION-001
+    domain: employment
+    description: "Probation period defined"
+    severity: low
+    evidence_required: true
+    retrieval_hints:
+      - "probation probationary period months"
+    check_prompt: >
+      Determine whether the contract has a probation period and states its
+      length. Quote the clause. If probation is mentioned without a duration,
+      mark non_compliant. If the contract has no probation period, mark
+      not_applicable.
+
+  - rule_id: EMPC-NOTICE-001
+    domain: employment
+    description: "Notice period specified for both parties"
+    severity: high
+    evidence_required: true
+    retrieval_hints:
+      - "notice period terminate by giving notice"
+      - "weeks months written notice"
+    check_prompt: >
+      Determine whether the contract specifies the notice period required
+      for termination by the employer AND by the employee. Quote the
+      clause(s). If a notice period is given for only one party, or no
+      duration is stated, mark non_compliant.
+
+  - rule_id: EMPC-IP-001
+    domain: employment
+    description: "IP assignment clause present"
+    severity: medium
+    evidence_required: true
+    retrieval_hints:
+      - "intellectual property inventions assign"
+      - "works created in the course of employment"
+    check_prompt: >
+      Determine whether the contract assigns intellectual property created
+      in the course of employment to the employer. Quote the clause. If
+      absent, mark non_compliant.
+
+  - rule_id: EMPC-NONCOMPETE-001
+    domain: employment
+    description: "Post-employment non-compete clause"
+    severity: low
+    evidence_required: true
+    retrieval_hints:
+      - "restraint of trade non-compete after termination"
+      - "shall not be employed by a competitor months"
+    check_prompt: >
+      Find any restriction on competing after employment ends. Quote the
+      clause and state its duration and geographic scope. If it has a stated
+      duration and scope, mark compliant; if either is missing, mark
+      non_compliant. If there is no such restriction, mark not_applicable.
+
+  - rule_id: EMPC-TERMGROUNDS-001
+    domain: employment
+    description: "Termination grounds specified"
+    severity: medium
+    evidence_required: true
+    retrieval_hints:
+      - "termination for cause misconduct summary dismissal"
+      - "termination without cause"
+    check_prompt: >
+      Determine whether the contract states the grounds for termination with
+      cause and addresses termination without cause. Quote the clause(s). If
+      neither is addressed, mark non_compliant.
+
+  - rule_id: EMPC-GOVLAW-001
+    domain: employment
+    description: "Governing law specified"
+    severity: low
+    evidence_required: true
+    retrieval_hints:
+      - "governing law laws of jurisdiction"
+    check_prompt: >
+      Identify which jurisdiction's law governs the employment contract.
+      Quote the clause. If none is stated, mark non_compliant.

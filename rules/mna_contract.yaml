@@ -1,0 +1,162 @@
+meta:
+  pack_id: mna_contract
+  name: M&A Contract
+  version: 0.1.0
+  jurisdiction: any
+
+rules:
+  - rule_id: MNA-PARTIES-001
+    domain: legal
+    description: "Parties clearly identified"
+    severity: high
+    evidence_required: true
+    retrieval_hints:
+      - "this agreement is entered into by and between"
+      - "buyer seller purchaser vendor registered address"
+    check_prompt: >
+      Determine whether every party to the agreement is identified by full
+      legal name and role (e.g. buyer, seller). Quote the clause. If any party
+      is unnamed or its role is unclear, mark non_compliant.
+
+  - rule_id: MNA-CONSIDERATION-001
+    domain: legal
+    description: "Consideration specified"
+    severity: high
+    evidence_required: true
+    retrieval_hints:
+      - "purchase price consideration amount"
+      - "payment of the purchase price adjustment"
+    check_prompt: >
+      Determine whether the purchase price or consideration is stated as an
+      amount or a defined formula. Quote the clause. If consideration is
+      referenced but never quantified, mark non_compliant.
+
+  - rule_id: MNA-CLOSING-001
+    domain: legal
+    description: "Closing date defined"
+    severity: medium
+    evidence_required: true
+    retrieval_hints:
+      - "closing date completion date"
+      - "closing shall take place on"
+    check_prompt: >
+      Determine whether the agreement defines a closing or completion date,
+      either as a fixed date or by reference to a defined event. Quote the
+      clause. If no date or mechanism is given, mark non_compliant.
+
+  - rule_id: MNA-CP-001
+    domain: legal
+    description: "Conditions precedent listed"
+    severity: medium
+    evidence_required: true
+    retrieval_hints:
+      - "conditions precedent conditions to closing"
+      - "subject to the satisfaction of the following conditions"
+    check_prompt: >
+      Determine whether the agreement lists the conditions that must be
+      satisfied before closing. Quote the clause. If closing is said to be
+      conditional but the conditions are not listed, mark non_compliant. If
+      the agreement states that closing is unconditional, mark not_applicable.
+
+  - rule_id: MNA-REPS-001
+    domain: legal
+    description: "Representations and warranties present"
+    severity: high
+    evidence_required: true
+    retrieval_hints:
+      - "representations and warranties of the seller"
+      - "representations and warranties of the buyer"
+    check_prompt: >
+      Determine whether each party gives representations and warranties.
+      Quote the clause(s) for each party. If only one party gives any, note
+      which; if none are given, mark non_compliant.
+
+  - rule_id: MNA-INDEMNITY-001
+    domain: legal
+    description: "Indemnification clause present"
+    severity: high
+    evidence_required: true
+    retrieval_hints:
+      - "indemnify and hold harmless indemnification"
+      - "losses arising from breach of warranty"
+    check_prompt: >
+      Determine whether the agreement sets out indemnification obligations,
+      including who indemnifies whom and for what. Quote the clause. If no
+      indemnity is given, mark non_compliant.
+
+  - rule_id: MNA-TERMINATION-001
+    domain: legal
+    description: "Termination rights defined"
+    severity: medium
+    evidence_required: true
+    retrieval_hints:
+      - "termination this agreement may be terminated"
+      - "long stop date material breach terminate"
+    check_prompt: >
+      Determine whether the agreement states when and by whom it may be
+      terminated before closing. Quote the clause. If no termination rights
+      are defined, mark non_compliant.
+
+  - rule_id: MNA-LIABCAP-001
+    domain: legal
+    description: "Liability cap specified"
+    severity: high
+    evidence_required: true
+    retrieval_hints:
+      - "limitation of liability aggregate liability shall not exceed"
+      - "maximum liability cap de minimis basket"
+    check_prompt: >
+      Determine whether the agreement caps liability and states the maximum
+      amount or formula. Quote the clause. If liability is limited without a
+      stated maximum, or there is no cap, mark non_compliant.
+
+  - rule_id: MNA-GOVLAW-001
+    domain: legal
+    description: "Governing law specified"
+    severity: medium
+    evidence_required: true
+    retrieval_hints:
+      - "governing law construed in accordance with the laws of"
+    check_prompt: >
+      Identify which jurisdiction's law governs the agreement. Quote the
+      clause. If none is stated, mark non_compliant.
+
+  - rule_id: MNA-DISPUTE-001
+    domain: legal
+    description: "Dispute resolution mechanism"
+    severity: medium
+    evidence_required: true
+    retrieval_hints:
+      - "dispute resolution arbitration mediation"
+      - "courts of exclusive jurisdiction"
+    check_prompt: >
+      Determine how disputes are resolved (arbitration, litigation,
+      mediation, or a tiered process). Quote the clause. If no mechanism is
+      stated, mark non_compliant.
+
+  - rule_id: MNA-CONFIDENTIALITY-001
+    domain: legal
+    description: "Confidentiality obligations"
+    severity: medium
+    evidence_required: true
+    retrieval_hints:
+      - "confidentiality confidential information shall not disclose"
+      - "non-disclosure announcements"
+    check_prompt: >
+      Determine whether the agreement imposes confidentiality or
+      non-disclosure obligations on the parties. Quote the clause. If none
+      exist, mark non_compliant.
+
+  - rule_id: MNA-NONCOMPETE-001
+    domain: legal
+    description: "Non-compete or non-solicitation restrictions"
+    severity: low
+    evidence_required: true
+    retrieval_hints:
+      - "non-compete shall not compete restricted business"
+      - "non-solicitation employees customers"
+    check_prompt: >
+      Find any non-compete or non-solicitation restriction. Quote the clause
+      and state its duration and scope. If a restriction exists with a stated
+      duration and scope, mark compliant. If it exists without a duration,
+      mark non_compliant. If there is none, mark not_applicable.

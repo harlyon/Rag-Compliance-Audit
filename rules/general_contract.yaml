@@ -1,0 +1,62 @@
+meta:
+  pack_id: general_contract
+  name: General Contract
+  version: 0.1.0
+  jurisdiction: any
+
+rules:
+  - rule_id: GEN-GOVLAW-001
+    domain: legal
+    description: "Governing law specified"
+    severity: medium
+    evidence_required: true
+    retrieval_hints:
+      - "governing law jurisdiction laws of the state"
+      - "conflict of laws"
+    check_prompt: >
+      Identify the governing law (state or country) named in the agreement.
+      Quote the clause. If two or more clauses name different governing laws,
+      mark non_compliant and quote each conflicting clause. If no governing
+      law is stated, mark non_compliant.
+
+  - rule_id: GEN-LIABCAP-001
+    domain: legal
+    description: "Liability cap specified"
+    severity: high
+    evidence_required: true
+    retrieval_hints:
+      - "limitation of liability aggregate liability shall not exceed"
+      - "liability cap maximum liability"
+    check_prompt: >
+      Determine whether the agreement contains an explicit limitation of
+      liability with a stated cap (an amount or formula). Quote the clause.
+      If liability is limited but no cap is stated, or there is no limitation
+      clause, mark non_compliant.
+
+  - rule_id: GEN-NONCOMPETE-001
+    domain: legal
+    description: "Non-compete period does not exceed 12 months"
+    severity: medium
+    evidence_required: true
+    retrieval_hints:
+      - "non-compete shall not compete restricted period"
+      - "restraint of trade months following termination"
+    check_prompt: >
+      Find any non-compete or restraint of trade restriction and its duration.
+      Quote the clause. If the restriction period exceeds twelve (12) months,
+      mark non_compliant. If it is 12 months or less, mark compliant. If the
+      agreement has no non-compete restriction, mark not_applicable.
+
+  - rule_id: GEN-BREACH-001
+    domain: legal
+    description: "Data breach notification deadline specified in hours"
+    severity: high
+    evidence_required: true
+    retrieval_hints:
+      - "data breach notification notify within hours"
+      - "security incident personal data breach notice"
+    check_prompt: >
+      Determine whether the agreement requires notification of a data breach
+      within a stated number of hours. Quote the clause. If breach
+      notification is required without a deadline, or the deadline is vague
+      ("promptly", "without undue delay"), mark non_compliant.
