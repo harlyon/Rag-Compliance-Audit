@@ -20,7 +20,8 @@ class ParsedDoc:
 
 
 def new_doc_id(path: Path) -> str:
-    return "doc_" + hashlib.sha1(str(path.resolve()).encode()).hexdigest()[:8]
+    """Content hash: the same file always gets the same id, different files never share one."""
+    return "doc_" + hashlib.sha1(path.read_bytes()).hexdigest()[:12]
 
 
 def classify(path: Path) -> str:

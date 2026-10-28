@@ -10,11 +10,9 @@ import typer
 from compliance_rag import config
 from compliance_rag.audit.runner import run_audit
 from compliance_rag.audit.rules import load_rules
-from compliance_rag.chunking.splitter import chunk_doc
-from compliance_rag.indexing.store import ensure_collection, index_chunks
-from compliance_rag.ingestion.parsers import parse_any
+from compliance_rag.ingestion.pipeline import SUPPORTED, ingest_file
 from compliance_rag.retrieval.search import fetch_chunks, hybrid_search
-from compliance_rag.storage.db import ensure_schema, get_conn
+from compliance_rag.storage.db import get_conn
 
 app = typer.Typer(no_args_is_help=True)
 audit_app = typer.Typer(no_args_is_help=True)
@@ -24,35 +22,24 @@ app.add_typer(audit_app, name="audit")
 @app.command()
 def ingest(folder: str) -> None:
     """Parse, chunk, and index every supported document in `folder`."""
-    ensure_schema()
-    ensure_collection()
-
-    paths = sorted(
-        p for p in Path(folder).rglob("*")
-        if p.suffix.lower() in (".pdf", ".docx", ".txt", ".md")
-    )
+    paths = sorted(p for p in Path(folder).rglob("*") if p.suffix.lower() in SUPPORTED)
     if not paths:
         typer.secho(f"No supported files under {folder}", fg=typer.colors.RED)
         raise typer.Exit(1)
 
     total = 0
-    conn = get_conn()
     for path in paths:
-        doc = parse_any(path)
-        if doc is None or (not doc.pages and not doc.tables):
+        result = ingest_file(path)
+        if result.status == "unreadable":
             typer.secho(f"skipped (unreadable): {path.name}", fg=typer.colors.YELLOW)
             continue
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO documents (doc_id, filename, domain, ocr_used) "
-                "VALUES (%s,%s,%s,%s) ON CONFLICT (doc_id) DO NOTHING",
-                (doc.doc_id, doc.filename, doc.domain, doc.ocr_used),
-            )
-        conn.commit()
-        n = index_chunks(chunk_doc(doc))
-        total += n
-        typer.secho(f"indexed {path.name} → {n} chunks ({doc.domain}) doc_id={doc.doc_id}",
-                    fg=typer.colors.GREEN)
+        if result.status == "already_indexed":
+            typer.secho(f"already indexed: {path.name} doc_id={result.doc.doc_id}",
+                        fg=typer.colors.YELLOW)
+            continue
+        total += result.chunks
+        typer.secho(f"indexed {path.name} → {result.chunks} chunks ({result.doc.domain}) "
+                    f"doc_id={result.doc.doc_id}", fg=typer.colors.GREEN)
     typer.secho(f"Done. {total} chunks searchable.", fg=typer.colors.BRIGHT_GREEN)
 
 

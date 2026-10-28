@@ -6,14 +6,15 @@ Most RAG demos answer questions. This one makes compliance judgements, and it is
 
 ## Features
 
-- **Rule packs as YAML.** Checklists are version-controlled files, so you can add a new audit type without touching code. Five packs are included (see [Rule packs](#rule-packs)).
+- **Templates or custom checklists.** Pick one of five built-in rule packs, or write your own checklist in the dashboard and save it as a template. Packs are version-controlled YAML, so new audit types need no code (see [Rule packs](#rule-packs)).
+- **Live results.** Each checklist item appears with its verdict and quoted evidence as soon as it completes.
 - **Hybrid retrieval.** Dense vector search (Qdrant) and BM25 keyword search (Postgres full-text) are merged with Reciprocal Rank Fusion. Clause wording like "restraint of trade" is found even when embeddings miss it.
 - **Structure-aware chunking.** Documents are split on clause and section headings, so citations point to a page and section rather than an arbitrary slice of text. Tables are kept whole.
 - **Quote validation.** Each citation is checked against the stored chunk text before it is saved (see [Guardrails](#guardrails)).
 - **Per-document audits.** Retrieval is limited to the document under audit, so evidence can't leak in from other files.
 - **Redaction before any API call.** ID and phone numbers, email addresses and currency amounts are masked before text is sent for embedding or judgement.
 - **Provider-agnostic.** Gemini or OpenAI via [LiteLLM](https://github.com/BerriAI/litellm), switched with one environment variable.
-- **Dashboard and CLI.** A Streamlit dashboard for uploading documents, running audits and browsing findings with their evidence, plus a Typer CLI for the same operations.
+- **Dashboard and CLI.** A Streamlit dashboard (upload → checklist → live results, plus audit history) and a Typer CLI for the same operations.
 
 ## Architecture
 
@@ -72,9 +73,11 @@ After editing `.env`, run `docker compose up -d` so the container picks up the c
 
 ### Dashboard
 
-1. **Run Audit** → upload documents → **Ingest**
-2. Choose the document and a rule pack → **Run audit**
-3. **Overview** shows the compliance score and the breakdown by status and severity. **Findings** lists each verdict with its quoted evidence, page and section.
+1. **Upload** a contract, policy or report. It's indexed automatically. Uploading the same file again is detected and reuses the existing index.
+2. **Pick a checklist.** Choose a **Template**, or switch to **Custom** and list your own checks (what to verify, severity, optional search phrases). **Save as template** writes it to `rules/` for reuse.
+3. **Run.** A progress bar tracks the checks, and each one appears with its verdict, explanation and quoted evidence as soon as it completes. Items that failed or lack evidence open automatically.
+
+Every run is saved. **Overview** shows the compliance score and the breakdown by status and severity; **Findings** lets you filter past results and open the full passage behind each quote.
 
 ### CLI
 
@@ -121,7 +124,7 @@ These guardrails are covered by unit tests in `tests/test_validate.py`.
 
 ## Writing a rule
 
-Drop a YAML file into `rules/`, then rebuild (`docker compose up -d --build`). The pack then appears in the dashboard.
+The easiest way is the **Custom** checklist builder in the dashboard. To write YAML by hand, drop a file into `rules/`. The folder is mounted into the container, so it appears in the dashboard straight away, with no rebuild.
 
 ```yaml
 meta:

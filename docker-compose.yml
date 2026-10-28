@@ -33,6 +33,7 @@ services:
         required: false
     volumes:
       - uploads:/app/uploads
+      - ./rules:/app/rules  # templates saved from the dashboard land in the repo
     depends_on:
       postgres:
         condition: service_healthy

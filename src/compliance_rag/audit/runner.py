@@ -14,19 +14,30 @@ from compliance_rag.retrieval.search import fetch_chunks, hybrid_search
 from compliance_rag.storage.db import ensure_schema, get_conn
 
 ProgressFn = Callable[[Rule, str, str], None]  # (rule, event, detail)
+FindingFn = Callable[[Rule, dict, list[dict]], None]  # (rule, stored finding, verified citations)
 
 
 def run_audit(pack_path: Path, domain: str | None = None,
               progress: ProgressFn | None = None,
-              doc_id: str | None = None) -> tuple[str, dict]:
+              doc_id: str | None = None,
+              on_finding: FindingFn | None = None) -> tuple[str, dict]:
     """Run every rule in the pack against one document (or the whole corpus if
     doc_id is None). Returns (audit_id, status summary)."""
+    pack_id, version, rules = load_rules(pack_path)
+    rules = [r for r in rules if domain is None or r.domain == domain]
+    return run_rules(pack_id, version, rules, progress, doc_id, on_finding)
+
+
+def run_rules(pack_id: str, version: str, rules: list[Rule],
+              progress: ProgressFn | None = None,
+              doc_id: str | None = None,
+              on_finding: FindingFn | None = None) -> tuple[str, dict]:
+    """Run the given rules (from a pack file or built in memory). Callbacks fire
+    after each rule, so callers can show results as they complete."""
     def emit(rule, event, detail=""):
         if progress:
             progress(rule, event, detail)
 
-    pack_id, version, rules = load_rules(pack_path)
-    rules = [r for r in rules if domain is None or r.domain == domain]
     audit_id = "audit_" + uuid.uuid4().hex[:10]
 
     ensure_schema()
@@ -52,6 +63,8 @@ def run_audit(pack_path: Path, domain: str | None = None,
                                                 f"[Absence claim: no clause found. Searched: {searched}]")
             summary[finding["status"]] = summary.get(finding["status"], 0) + 1
             _persist_finding(conn, audit_id, rule, finding, citations)
+            if on_finding:
+                on_finding(rule, finding, citations)
             emit(rule, finding["status"],
                  "clause not found" if finding.get("absence") else f"{len(citations)} citations")
         except Exception as exc:  # noqa: BLE001 — one bad rule must not kill the run

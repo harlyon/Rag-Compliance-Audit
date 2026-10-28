@@ -27,7 +27,7 @@ TEMPERATURE = 0
 CHUNK_TARGET = 600
 CHUNK_OVERLAP = 150
 HEADING_RE = re.compile(
-    r"^(?:\d+(\.\d+)*\s+\S.{0,80}|"
+    r"^(?:\d+(\.\d+)*\.?\s+\S.{0,80}|"  # "7 Term", "7.2 Term", "7. Term"
     r"(?:clause|section|article|paragraph|item)\s+[\d\w()]+.{0,80})$",
     re.IGNORECASE,
 )

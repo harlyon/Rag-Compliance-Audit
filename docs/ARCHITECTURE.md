@@ -59,7 +59,7 @@ flowchart TB
 
 There are three runtime services:
 
-- **dashboard** is the only application container. It runs the Streamlit UI and contains the whole `compliance_rag` Python package. Long operations (ingest, audit run) are run as CLI subprocesses (`python -m compliance_rag.cli ...`), so the UI and the CLI share one code path.
+- **dashboard** is the only application container. It runs the Streamlit UI and contains the whole `compliance_rag` Python package. The UI and the CLI call the same functions (`ingest_file`, `run_rules`), so they share one code path.
 - **postgres** is the system of record. It holds the full chunk text, the keyword search index, and all audit results.
 - **qdrant** holds one embedding vector per chunk, with a small metadata payload. It holds no document text.
 
@@ -130,7 +130,8 @@ sequenceDiagram
 | DOCX | python-docx | all paragraphs | `doc.tables`, rows joined with `\|` | always 1 |
 | TXT / MD | stdlib | whole file | none | always 1 |
 
-- **`doc_id`** is `doc_` followed by the first 8 hex characters of the SHA-1 of the file's absolute path. It is deterministic, so re-ingesting the same path keeps the same ID.
+- **`doc_id`** is `doc_` followed by the first 12 hex characters of the SHA-1 of the file's **contents**. The same file always gets the same ID, and two different files never share one, even with the same name.
+- **Ingestion is idempotent and atomic** (`ingestion/pipeline.py`). A file whose `doc_id` already exists is skipped, so nothing is duplicated. If indexing fails part-way, the partial document is removed from both stores, so a retry starts clean.
 - **Domain** (`legal | financial | employment`) is assigned from keywords in the filename. It is stored on the document but doesn't affect auditing yet.
 - **Scanned PDFs** (no text layer, no tables) get `ocr_used = true` and are skipped by the CLI. There is no OCR step.
 
@@ -138,7 +139,7 @@ sequenceDiagram
 
 Chunking is structure-aware because citations need to be meaningful. "§7.2 Termination, page 4" is useful to a reviewer; "characters 3,000–3,600" is not.
 
-1. Each page is split into lines. A line matching `HEADING_RE` starts a new section. The pattern matches numbered headings (`7.2 Termination`) and keyword headings (`Clause 12 ...`, `Section 4(a) ...`).
+1. Each page is split into lines. A line matching `HEADING_RE` starts a new section. The pattern matches numbered headings (`7 Term`, `7.2 Term`, `7. Term`) and keyword headings (`Clause 12 ...`, `Section 4(a) ...`).
 2. Each section's body is collapsed to single-spaced text.
 3. A section of `CHUNK_TARGET` (600) characters or less becomes **one chunk**: type `clause` if it has a heading, otherwise `narrative`.
 4. A longer section is split with a **sliding window** of 600 characters with 150 characters of overlap. Every piece keeps the section heading.
@@ -199,6 +200,8 @@ A pack is a YAML file with `meta` (pack_id, version) and a list of rules:
 
 Included packs: `general_contract` (4 rules), `mna_contract` (12), `financial_report` (10), `employment_contract` (10), `employment_za` (4).
 
+**Custom checklists.** `custom_pack(name, items)` builds rules from plain checklist rows: label, the question to verify, optional severity and optional `;`-separated search phrases. Each question is wrapped in a standard `check_prompt` that spells out the pass, fail and not-applicable conditions. Rule IDs are `CUSTOM-<NAME>-NNN`, and search phrases default to the label and question. `dump_pack` writes the result in the same YAML format, so a saved custom checklist is an ordinary template.
+
 ### 6.2 Running an audit (`audit/runner.py`)
 
 ```mermaid
@@ -227,6 +230,8 @@ sequenceDiagram
 ```
 
 Each rule is independent. An exception in one rule (an API error, malformed JSON) is counted as `dropped` and the audit continues.
+
+`run_audit(pack_path, …)` loads a pack file; `run_rules(pack_id, version, rules, …)` runs any list of rules, including a custom checklist built in memory. Two callbacks fire after each rule: `progress(rule, event, detail)` for every rule, including dropped ones, and `on_finding(rule, finding, citations)` with the stored finding and its verified citations. The CLI uses `progress` to print a line per rule. The dashboard uses both to advance a progress bar and render each finding card the moment it is stored.
 
 ### 6.3 Prompt (`audit/llm.py`)
 
@@ -415,7 +420,7 @@ Redaction covers **structured** identifiers only. Personal names, addresses and 
 | `dashboard` | built from `Dockerfile` (python:3.12-slim) | 8501 | `uploads` volume |
 
 - `dashboard` waits for postgres to be **healthy** before starting.
-- `src/`, `dashboard/` and `rules/` are copied into the image, so code or rule changes need `--build`. Changes to `.env` need only `docker compose up -d`.
+- `src/` and `dashboard/` are copied into the image, so code changes need `--build`. `rules/` is bind-mounted from the repo, so templates saved in the dashboard land in the repo and hand-written packs appear without a rebuild. Changes to `.env` need only `docker compose up -d`.
 - `qdrant-client` is pinned to `1.12.x`. Qdrant requires the client and server to be within one minor version of each other.
 
 For a hosted deployment, the same image works unchanged against managed Postgres and Qdrant Cloud via `DB_DSN` and `QDRANT_URL`. Authentication in front of the dashboard would be needed first (see §10).
@@ -438,7 +443,7 @@ For a hosted deployment, the same image works unchanged against managed Postgres
 
 **LiteLLM.** It provides one interface for embeddings and chat across providers. Provider choice becomes a config preset instead of a code change.
 
-**Dashboard runs the CLI as a subprocess.** Each operation exists exactly once, in the CLI. The cost is that a long audit blocks the browser session until it finishes, with no progress updates.
+**Live results through callbacks, not a job queue.** The dashboard calls `run_rules` in-process and renders each finding from the `on_finding` callback, so results appear per item with no extra infrastructure. The trade-off is that the run is tied to the browser session: navigating away mid-audit stops it, though every finding stored up to that point is kept. A background worker (e.g. a task queue) would decouple them.
 
 ---
 
@@ -451,8 +456,6 @@ For a hosted deployment, the same image works unchanged against managed Postgres
 | **Conclusions aren't verified.** The quote is checked, not whether it supports the verdict. | A real quote ("24 months") can be paired with a wrong verdict (`compliant` against a 12-month rule). | A second check per finding: an LLM entailment call, or rule-specific extractors (e.g. parse months and compare to 12). |
 | **The first hint dominates evidence.** Each hint returns up to 8 chunks, then the combined list is cut to the first 8. | The first hint can fill every slot, so later hints add nothing. | Fuse all hints with RRF, or take a fixed share per hint. |
 | **Evidence order is lost.** `fetch_chunks` uses `WHERE chunk_id = ANY(...)`, which returns rows in arbitrary order. | The model doesn't see the most relevant chunks first. | Re-sort the fetched rows into ranked order. |
-| **Re-ingesting duplicates chunks.** `doc_id` is stable, but chunk IDs are random UUIDs. | Ingesting the same file twice stores every chunk twice. | Make chunk IDs deterministic (hash of doc_id, page, position), or delete a document's chunks before re-ingest. |
-| **`doc_id` is based on the path, not the content.** | Two different files uploaded with the same name share a `doc_id`. | Hash the file contents. |
 | **The model can override severity.** `finding.get("severity", rule.severity)` | The model can downgrade a high-severity rule. | Always use the rule's severity. |
 | **Statuses aren't enforced.** | An out-of-vocabulary status from the model is stored as is. | Validate against the four allowed values. |
 | **Confidence is self-reported.** | It isn't calibrated and shouldn't be read as a probability. | Calibrate against a labelled evaluation set. |
@@ -464,7 +467,7 @@ For a hosted deployment, the same image works unchanged against managed Postgres
 - **Redaction misses names.** Planned: NER (e.g. spaCy) before API calls.
 - **Domain is assigned from the filename** and isn't used for routing. Planned: an embedding-based classifier that selects a rule pack automatically.
 - **No reranker.** Planned: a cross-encoder over the 30 fused candidates.
-- **Audits are synchronous** in the dashboard. Planned: a background job with progress updates.
+- **Audits run in the browser session.** Results stream live, but leaving the page stops the run. Planned: a background worker.
 - **No authentication.**
 - **No accuracy measurement.** Planned: a labelled evaluation set (documents with expected verdicts per rule) and a script that reports accuracy per rule and per status. This is the main thing missing for making accuracy claims.
 
@@ -479,9 +482,11 @@ For a hosted deployment, the same image works unchanged against managed Postgres
 - quotes of redacted text match the raw chunk
 - invented chunk references are discarded; unverified `compliant` and `non_compliant` verdicts are downgraded; `non_compliant` without citations becomes an absence claim
 - redaction masks currency amounts without eating characters from adjacent words
+- custom checklists round-trip through YAML, and invalid severities are rejected
+- the heading pattern recognises `7 Term`, `7.2 Term` and `7. Term` but not body text
 
 ```bash
 PYTHONPATH=src pytest tests/
 ```
 
-Retrieval, ingestion and the end-to-end audit path have no automated tests yet. The evaluation set described in §13 is the planned way to cover them.
+Retrieval, ingestion and the end-to-end audit path have no automated tests yet. They were checked by hand with Streamlit's `AppTest` harness against temporary Postgres and Qdrant containers. The evaluation set described in §13 is the planned way to cover them.

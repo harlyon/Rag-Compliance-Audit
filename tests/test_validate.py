@@ -100,3 +100,37 @@ def test_redaction_keeps_words_ending_in_r():
     assert redact("The EMPLOYER shall pay R 25,000.00 monthly") == \
         "The EMPLOYER shall pay [REDACTED] monthly"
     assert redact("ZAR1500 per month") == "[REDACTED] per month"
+
+
+def test_custom_pack_round_trips_through_yaml(tmp_path):
+    from compliance_rag.audit.rules import custom_pack, dump_pack, load_rules
+    pack_id, rules = custom_pack("Vendor NDA!", [
+        {"label": "Term stated", "question": "Is the NDA term stated?", "severity": "high",
+         "hints": "term of this agreement; duration"},
+        {"label": "Return of materials", "question": "Must materials be returned?",
+         "severity": "", "hints": ""},
+    ])
+    assert pack_id == "custom_vendor_nda"
+    assert [r.rule_id for r in rules] == ["CUSTOM-VENDOR_NDA-001", "CUSTOM-VENDOR_NDA-002"]
+    assert rules[0].retrieval_hints == ["term of this agreement", "duration"]
+    assert rules[1].severity == "medium"
+    assert rules[1].retrieval_hints == ["Return of materials", "Must materials be returned?"]
+    path = tmp_path / "p.yaml"
+    path.write_text(dump_pack(pack_id, "Vendor NDA!", "0.1.0", rules))
+    assert load_rules(path) == (pack_id, "0.1.0", rules)
+
+
+def test_custom_pack_rejects_bad_severity():
+    from compliance_rag.audit.rules import custom_pack
+    with pytest.raises(ValueError):
+        custom_pack("x", [{"label": "a", "question": "b", "severity": "urgent"}])
+
+
+@pytest.mark.parametrize("line,is_heading", [
+    ("7 Termination", True), ("7.2 Termination", True), ("7. Termination", True),
+    ("Clause 12 Confidentiality", True), ("Section 4(a) Payment", True),
+    ("The Supplier shall supply the goods.", False), ("2024", False),
+])
+def test_heading_pattern(line, is_heading):
+    from compliance_rag import config
+    assert bool(config.HEADING_RE.match(line)) is is_heading
