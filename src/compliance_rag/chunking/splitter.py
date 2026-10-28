@@ -35,7 +35,7 @@ def split_page(page_text: str, page: int, doc: ParsedDoc) -> Iterator[Chunk]:
     lines = page_text.splitlines()
     sections: list[tuple[str, list[str]]] = [("", [])]
     for line in lines:
-        if config.HEADING_RE.match(line.strip()):
+        if line.strip() in doc.headings or config.HEADING_RE.match(line.strip()):
             sections.append((line.strip(), []))
         else:
             sections[-1][1].append(line)

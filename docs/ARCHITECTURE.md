@@ -127,7 +127,7 @@ sequenceDiagram
 | Format | Library | Text | Tables | Page numbers |
 |---|---|---|---|---|
 | PDF | pdfplumber | `extract_text()` per page | `extract_tables()`, rows joined with `\|` | real |
-| DOCX | python-docx | all paragraphs | `doc.tables`, rows joined with `\|` | always 1 |
+| DOCX | python-docx | body paragraphs, then footnotes, endnotes, text boxes, headers and footers (each as its own section) | `doc.tables`, rows joined with `\|` | always 1 (Word files have no fixed pages) |
 | TXT / MD | stdlib | whole file | none | always 1 |
 
 - **`doc_id`** is `doc_` followed by the first 12 hex characters of the SHA-1 of the file's **contents**. The same file always gets the same ID, and two different files never share one, even with the same name.
@@ -139,7 +139,9 @@ sequenceDiagram
 
 Chunking is structure-aware because citations need to be meaningful. "§7.2 Termination, page 4" is useful to a reviewer; "characters 3,000–3,600" is not.
 
-1. Each page is split into lines. A line matching `HEADING_RE` starts a new section. The pattern matches numbered headings (`7 Term`, `7.2 Term`, `7. Term`) and keyword headings (`Clause 12 ...`, `Section 4(a) ...`).
+1. Each page is split into lines. A line starts a new section if it matches `HEADING_RE`, or if the parser marked it as a heading from the document's structure (`ParsedDoc.headings`).
+   - `HEADING_RE` matches typed numbering (`7 Term`, `7.2 Term`, `7. Term`) and keyword headings (`Clause 12 ...`, `Section 4(a) ...`).
+   - **DOCX structure.** Word usually numbers clauses automatically, so "7.2" never appears in the text and the pattern alone would miss them. The DOCX parser therefore marks as headings: paragraphs styled Heading or Title, and short title-like paragraphs (no closing punctuation) that are auto-numbered (directly or through their style) or entirely bold. Numbered body sentences end in punctuation and stay in the body.
 2. Each section's body is collapsed to single-spaced text.
 3. A section of `CHUNK_TARGET` (600) characters or less becomes **one chunk**: type `clause` if it has a heading, otherwise `narrative`.
 4. A longer section is split with a **sliding window** of 600 characters with 150 characters of overlap. Every piece keeps the section heading.
@@ -484,6 +486,7 @@ For a hosted deployment, the same image works unchanged against managed Postgres
 - redaction masks currency amounts without eating characters from adjacent words
 - custom checklists round-trip through YAML, and invalid severities are rejected
 - the heading pattern recognises `7 Term`, `7.2 Term` and `7. Term` but not body text
+- DOCX (`tests/test_docx.py`): headings come from Word styles, auto-numbering and bold titles; numbered body sentences stay in the body; headers, tables and footnotes are extracted, and footnote separators are skipped
 
 ```bash
 PYTHONPATH=src pytest tests/

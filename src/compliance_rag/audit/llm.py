@@ -5,6 +5,7 @@ import json
 import re
 
 from litellm import completion
+from litellm.types.utils import Choices, ModelResponse
 
 from compliance_rag import config
 from compliance_rag.audit.rules import Rule
@@ -55,4 +56,7 @@ def generate_finding(rule: Rule, chunks: list[dict]) -> dict:
             {"role": "user", "content": build_user_prompt(rule, chunks)},
         ],
     )
+    # completion() is typed to also return stream/async variants; we use neither.
+    if not isinstance(resp, ModelResponse) or not isinstance(resp.choices[0], Choices):
+        raise TypeError(f"Expected a non-streaming ModelResponse, got {type(resp).__name__}")
     return parse_json_block(resp.choices[0].message.content or "")
