@@ -79,9 +79,13 @@ def run(pack: str, domain: str | None = None, doc: str | None = None) -> None:
                     + (f" ({detail})" if detail else ""), fg=color)
 
     audit_id, summary = run_audit(Path(pack), domain, progress, doc)
-    typer.secho(f"Audit {audit_id} complete:", fg=typer.colors.BRIGHT_GREEN)
+    stopped = summary.pop("stopped", None)
+    typer.secho(f"Audit {audit_id} {'stopped early' if stopped else 'complete'}:",
+                fg=typer.colors.RED if stopped else typer.colors.BRIGHT_GREEN)
     for k, v in summary.items():
         typer.echo(f"  {k:18} {v}")
+    if stopped:
+        typer.secho(f"  {stopped} Findings so far are saved.", fg=typer.colors.RED)
     typer.echo(f"  View:  python -m compliance_rag.cli audit findings --audit {audit_id}")
 
 

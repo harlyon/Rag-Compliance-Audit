@@ -2,12 +2,16 @@
 from __future__ import annotations
 
 import datetime as dt
+import time
 import uuid
 from pathlib import Path
 from typing import Callable
 
+import litellm
+
 from compliance_rag import config
-from compliance_rag.audit.llm import generate_finding
+from compliance_rag.audit.llm import (QuotaExceeded, describe_quota, generate_finding,
+                                      retry_delay_s)
 from compliance_rag.audit.rules import Rule, load_rules
 from compliance_rag.audit.validate import validate_finding
 from compliance_rag.retrieval.search import fetch_chunks, hybrid_search
@@ -15,6 +19,11 @@ from compliance_rag.storage.db import ensure_schema, get_conn
 
 ProgressFn = Callable[[Rule, str, str], None]  # (rule, event, detail)
 FindingFn = Callable[[Rule, dict, list[dict]], None]  # (rule, stored finding, verified citations)
+
+# A rate limit that resets within this many seconds (a per-minute limit) is
+# waited out; anything longer (a daily quota) stops the audit.
+MAX_QUOTA_WAIT_S = 60
+QUOTA_RETRIES = 2
 
 
 def run_audit(pack_path: Path, domain: str | None = None,
@@ -33,7 +42,12 @@ def run_rules(pack_id: str, version: str, rules: list[Rule],
               doc_id: str | None = None,
               on_finding: FindingFn | None = None) -> tuple[str, dict]:
     """Run the given rules (from a pack file or built in memory). Callbacks fire
-    after each rule, so callers can show results as they complete."""
+    after each rule, so callers can show results as they complete.
+
+    If the provider's quota runs out, the audit stops: the rule that hit it gets
+    a 'quota' progress event, summary["not_run"] counts the rules left, and
+    summary["stopped"] holds the reason (also stored on the audit row).
+    """
     def emit(rule, event, detail=""):
         if progress:
             progress(rule, event, detail)
@@ -44,19 +58,13 @@ def run_rules(pack_id: str, version: str, rules: list[Rule],
     conn = get_conn()
     _persist_pack_and_audit(conn, pack_id, version, rules, audit_id, doc_id)
 
-    summary = {"compliant": 0, "non_compliant": 0, "missing_evidence": 0,
-               "not_applicable": 0, "dropped": 0}
+    summary: dict = {"compliant": 0, "non_compliant": 0, "missing_evidence": 0,
+                     "not_applicable": 0, "dropped": 0, "not_run": 0}
+    stopped: str | None = None
 
-    for rule in rules:
-        chunk_ids: list[str] = []
-        for hint in rule.retrieval_hints:
-            chunk_ids.extend(hybrid_search(hint, config.TOP_EVIDENCE, doc_id))
-        chunk_ids = list(dict.fromkeys(chunk_ids))[:config.TOP_EVIDENCE]
-        chunks = fetch_chunks(chunk_ids)
-
+    for i, rule in enumerate(rules):
         try:
-            raw = generate_finding(rule, chunks)
-            finding, citations, _ = validate_finding(raw, chunks)
+            finding, citations = _judge(rule, doc_id)
             if finding.get("absence"):
                 searched = "; ".join(f'"{h}"' for h in rule.retrieval_hints)
                 finding = dict(finding, finding=f"{finding['finding']} "
@@ -67,15 +75,44 @@ def run_rules(pack_id: str, version: str, rules: list[Rule],
                 on_finding(rule, finding, citations)
             emit(rule, finding["status"],
                  "clause not found" if finding.get("absence") else f"{len(citations)} citations")
+        except QuotaExceeded as exc:  # every remaining rule would fail the same way
+            stopped = str(exc)
+            summary["not_run"] = len(rules) - i
+            emit(rule, "quota", stopped)
+            break
         except Exception as exc:  # noqa: BLE001 — one bad rule must not kill the run
             summary["dropped"] += 1
             emit(rule, "dropped", str(exc))
 
+    if stopped:
+        summary["stopped"] = stopped
     with conn.cursor() as cur:
-        cur.execute("UPDATE audits SET finished_at = now() WHERE audit_id = %s", (audit_id,))
+        cur.execute("UPDATE audits SET finished_at = now(), stopped_reason = %s "
+                    "WHERE audit_id = %s", (stopped, audit_id))
     conn.commit()
     conn.close()
     return audit_id, summary
+
+
+def _judge(rule: Rule, doc_id: str | None) -> tuple[dict, list[dict]]:
+    """Retrieve evidence and get a validated finding for one rule.
+
+    Short rate limits are waited out and retried; a long one raises QuotaExceeded.
+    """
+    for attempt in range(QUOTA_RETRIES + 1):
+        try:
+            chunk_ids: list[str] = []
+            for hint in rule.retrieval_hints:
+                chunk_ids.extend(hybrid_search(hint, config.TOP_EVIDENCE, doc_id))
+            chunks = fetch_chunks(list(dict.fromkeys(chunk_ids))[:config.TOP_EVIDENCE])
+            finding, citations, _ = validate_finding(generate_finding(rule, chunks), chunks)
+            return finding, citations
+        except litellm.RateLimitError as exc:
+            delay = retry_delay_s(exc)
+            if delay is None or delay > MAX_QUOTA_WAIT_S or attempt == QUOTA_RETRIES:
+                raise QuotaExceeded(describe_quota(exc)) from exc
+            time.sleep(delay + 1)
+    raise AssertionError("unreachable")
 
 
 def _persist_pack_and_audit(conn, pack_id, version, rules, audit_id, doc_id) -> None:

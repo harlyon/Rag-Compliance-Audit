@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS audits (
 );
 -- NULL doc_id = audit ran across the whole corpus
 ALTER TABLE audits ADD COLUMN IF NOT EXISTS doc_id TEXT REFERENCES documents(doc_id) ON DELETE CASCADE;
+-- set when the audit stopped early (e.g. provider quota reached)
+ALTER TABLE audits ADD COLUMN IF NOT EXISTS stopped_reason TEXT;
 CREATE TABLE IF NOT EXISTS findings (
     finding_id  TEXT PRIMARY KEY,
     audit_id    TEXT NOT NULL REFERENCES audits(audit_id) ON DELETE CASCADE,

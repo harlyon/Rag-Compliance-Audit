@@ -142,6 +142,10 @@ def render_overview() -> None:
     audit_id = select_audit("Audit")
     if not audit_id:
         return
+    stopped = query("SELECT stopped_reason FROM audits WHERE audit_id = %s",
+                    (audit_id,)).stopped_reason.iloc[0]
+    if stopped:
+        st.warning(f"This audit stopped early, so some checks have no result. {stopped}")
     summary = audit_summary(audit_id)
     if summary.empty:
         st.warning("This audit has no findings recorded.")
@@ -304,6 +308,8 @@ def stream_audit(doc_id: str, filename: str, pack_id: str, version: str, rules: 
 
     def on_progress(rule, event, detail):
         nonlocal done
+        if event == "quota":  # the run stops here; shown once, after the loop
+            return
         done += 1
         bar.progress(done / total, text=f"{done} / {total} checks")
         if event == "dropped":
@@ -322,9 +328,14 @@ def stream_audit(doc_id: str, filename: str, pack_id: str, version: str, rules: 
                                 expanded=finding["status"] != "compliant")
 
     try:
-        audit_id, _ = run_rules(pack_id, version, rules, on_progress, doc_id, on_finding)
+        audit_id, summary = run_rules(pack_id, version, rules, on_progress, doc_id, on_finding)
     except Exception as exc:  # noqa: BLE001 — e.g. Qdrant or Postgres unreachable
         st.error(f"Audit stopped: {exc}")
+        return
+    if stopped := summary.get("stopped"):
+        bar.progress(done / total, text=f"Stopped after {done} / {total} checks")
+        st.error(f"⛔ {stopped} {summary['not_run']} check(s) were not run. "
+                 f"The {done} completed are saved as {audit_id}.")
         return
     bar.progress(1.0, text=f"Audit complete: {total} checks")
     st.success(f"Saved as {audit_id}. Revisit it any time under **Overview** or **Findings**.")

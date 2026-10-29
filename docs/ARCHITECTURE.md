@@ -233,6 +233,10 @@ sequenceDiagram
 
 Each rule is independent. An exception in one rule (an API error, malformed JSON) is counted as `dropped` and the audit continues.
 
+**Provider quotas are the exception.** When the LLM or embedding provider returns a rate limit, the runner reads the reset time from the error:
+- **Short limit** (resets within 60 seconds, e.g. requests per minute): it waits and retries the rule, up to twice.
+- **Long limit** (e.g. a daily quota), or no reset time given: every remaining rule would fail the same way, so the audit **stops**. The rule that hit the limit gets a `quota` progress event, `summary["not_run"]` counts the rules left, and a readable reason ("Gemini quota reached: requests per day limit exceeded on Free Tier. Resets in ~11h 47m.") goes into `summary["stopped"]` and `audits.stopped_reason`. Findings already stored are kept. The dashboard shows one message instead of an error per remaining check, and the Overview page flags the audit as incomplete.
+
 `run_audit(pack_path, …)` loads a pack file; `run_rules(pack_id, version, rules, …)` runs any list of rules, including a custom checklist built in memory. Two callbacks fire after each rule: `progress(rule, event, detail)` for every rule, including dropped ones, and `on_finding(rule, finding, citations)` with the stored finding and its verified citations. The CLI uses `progress` to print a line per rule. The dashboard uses both to advance a progress bar and render each finding card the moment it is stored.
 
 ### 6.3 Prompt (`audit/llm.py`)
@@ -329,6 +333,7 @@ erDiagram
         int rule_count
         timestamptz started_at
         timestamptz finished_at
+        text stopped_reason "NULL unless stopped early"
     }
     findings {
         text finding_id PK

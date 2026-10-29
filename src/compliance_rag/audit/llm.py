@@ -26,6 +26,34 @@ Respond with ONLY a JSON object, no markdown fences:
 }"""
 
 
+class QuotaExceeded(Exception):
+    """The provider's quota is used up; further calls will fail until it resets."""
+
+
+def retry_delay_s(exc: Exception) -> float | None:
+    """Seconds to wait, from a provider message like 'Please retry in 11h47m47.5s'."""
+    match = re.search(r"retry in ((?:\d+h)?(?:\d+m)?(?:[\d.]+s)?)", str(exc))
+    if not match or not match.group(1):
+        return None
+    parts = ((r"(\d+)h", 3600), (r"(\d+)m(?!s)", 60), (r"([\d.]+)s", 1))
+    return sum(float(m.group(1)) * k for p, k in parts if (m := re.search(p, match.group(1))))
+
+
+def _duration(seconds: float) -> str:
+    if seconds >= 3600:
+        return f"{int(seconds // 3600)}h {int(seconds % 3600 // 60)}m"
+    return f"{int(seconds // 60)}m" if seconds >= 60 else f"{int(seconds)}s"
+
+
+def describe_quota(exc: Exception) -> str:
+    """One readable line from a provider rate-limit error: which limit, and when it resets."""
+    limit = re.search(r"description: (.+?)(?:\. |\.?$)", str(exc), re.M)
+    delay = retry_delay_s(exc)
+    return (f"{config.PROVIDER.capitalize()} quota reached: "
+            f"{limit.group(1) if limit else 'rate limit exceeded'}."
+            + (f" Resets in ~{_duration(delay)}." if delay else ""))
+
+
 def build_user_prompt(rule: Rule, chunks: list[dict]) -> str:
     evidence_blocks = [
         f'<evidence chunk_id="{c["chunk_id"]}" doc="{c["doc_id"]}" '
